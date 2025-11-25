@@ -52,7 +52,7 @@ export interface GraphLink extends SimulationLinkDatum<GraphNode> {
   column?: string;
 }
 
-// Standard TS pattern for string enums to avoid collisions and runtime issues
+// Simple object for status to avoid enum runtime issues
 export const AnalysisStatus = {
   IDLE: 'IDLE',
   LOADING: 'LOADING',

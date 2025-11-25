@@ -1,9 +1,20 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from '../constants';
 import { AnalysisReport } from '../types';
 
+// Declare process to prevent TypeScript errors in browser environments without node types
+declare const process: { env: { [key: string]: string | undefined } };
+
 export const analyzeSchema = async (schemaContent: string): Promise<AnalysisReport> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Safe access to process.env.API_KEY
+  const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
+  
+  if (!apiKey) {
+    console.warn("API Key is missing. Gemini features will fail.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
   
   // Truncate schema if it's massive to avoid token limits
   const safeContent = schemaContent.slice(0, 100000); 
