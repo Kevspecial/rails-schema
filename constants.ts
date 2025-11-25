@@ -29,12 +29,14 @@ export const EXAMPLE_SCHEMA = `
 `;
 
 export const SYSTEM_INSTRUCTION = `
-You are an expert Ruby on Rails Database Architect. 
-Your goal is to analyze database schemas (schema.rb content) provided by the user.
+You are an expert Database Architect and Software Engineer. 
+Your goal is to analyze database schemas provided by the user. 
+The schema might be in various formats: Ruby on Rails (schema.rb), Django models (models.py), Prisma (schema.prisma), SQL DDL (schema.sql), or others.
+
 Provide insights on:
-1. Structural integrity (circular dependencies, missing foreign keys).
-2. Performance optimizations (indexes, types).
-3. Naming conventions and best practices.
+1. Structural integrity (circular dependencies, missing foreign keys, normalization).
+2. Performance optimizations (indexing strategies, data type choices).
+3. Naming conventions and adherence to framework-specific best practices.
 4. A brief summary of the domain model inferred from the tables.
 
 Return the response in JSON format strictly conforming to this schema:

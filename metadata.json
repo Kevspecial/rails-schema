@@ -1,5 +1,5 @@
 {
   "name": "SchemaViz AI",
-  "description": "Visualize Ruby on Rails schema.rb files as interactive maps and analyze them with Gemini AI.",
+  "description": "Visualize database schemas (Rails, Django, Prisma, SQL) as interactive maps and analyze them with Gemini AI.",
   "requestFramePermissions": []
 }

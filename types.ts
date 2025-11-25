@@ -1,4 +1,20 @@
-import { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
+
+// Manually define D3 simulation types to avoid import dependency issues in the runtime environment
+export interface SimulationNodeDatum {
+  index?: number;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+  fx?: number | null;
+  fy?: number | null;
+}
+
+export interface SimulationLinkDatum<NodeDatum extends SimulationNodeDatum> {
+  source: NodeDatum | string | number;
+  target: NodeDatum | string | number;
+  index?: number;
+}
 
 export interface Column {
   name: string;
@@ -27,10 +43,6 @@ export interface GraphNode extends SimulationNodeDatum {
   id: string;
   type: 'table';
   data: Table;
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
   level?: number;
 }
 
@@ -40,12 +52,15 @@ export interface GraphLink extends SimulationLinkDatum<GraphNode> {
   column?: string;
 }
 
-export enum AnalysisStatus {
-  IDLE = 'IDLE',
-  LOADING = 'LOADING',
-  SUCCESS = 'SUCCESS',
-  ERROR = 'ERROR'
-}
+// Standard TS pattern for string enums to avoid collisions and runtime issues
+export const AnalysisStatus = {
+  IDLE: 'IDLE',
+  LOADING: 'LOADING',
+  SUCCESS: 'SUCCESS',
+  ERROR: 'ERROR'
+} as const;
+
+export type AnalysisStatus = typeof AnalysisStatus[keyof typeof AnalysisStatus];
 
 export interface AnalysisReport {
   summary: string;

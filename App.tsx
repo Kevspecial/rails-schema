@@ -22,7 +22,7 @@ const App: React.FC = () => {
 
   // Initialize with example data
   useEffect(() => {
-    const data = parseSchema(EXAMPLE_SCHEMA);
+    const data = parseSchema(EXAMPLE_SCHEMA, 'example.rb');
     setSchemaData(data);
   }, []);
 
@@ -32,32 +32,6 @@ const App: React.FC = () => {
       setIsFocused(false);
     }
   }, [selectedTable]);
-
-  // Storage Functions
-  const saveSchemaToStorage = () => {
-    if (schemaData?.rawContent) {
-      try {
-        localStorage.setItem('schemaviz_content', schemaData.rawContent);
-        alert('Schema saved successfully!');
-      } catch (e) {
-        alert('Failed to save schema.');
-      }
-    }
-  };
-
-  const loadSchemaFromStorage = () => {
-    const content = localStorage.getItem('schemaviz_content');
-    if (content) {
-      const parsed = parseSchema(content);
-      setSchemaData(parsed);
-      setSelectedTable(null);
-      setAnalysisStatus(AnalysisStatus.IDLE);
-      setAnalysisReport(null);
-      setIsFocused(false);
-    } else {
-      alert('No saved schema found.');
-    }
-  };
 
   // Compute Active Data (Filtered if Focused)
   const activeData = useMemo(() => {
@@ -95,16 +69,28 @@ const App: React.FC = () => {
   };
 
   const processFile = (file: File) => {
+    // Security: Limit file size to 5MB to prevent browser crash/DoS
+    const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE_BYTES) {
+      alert(`File is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Please upload a file smaller than 5MB.`);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       if (content) {
-        const parsed = parseSchema(content);
-        setSchemaData(parsed);
-        setSelectedTable(null);
-        setAnalysisStatus(AnalysisStatus.IDLE);
-        setAnalysisReport(null);
-        setIsFocused(false);
+        try {
+          const parsed = parseSchema(content, file.name);
+          setSchemaData(parsed);
+          setSelectedTable(null);
+          setAnalysisStatus(AnalysisStatus.IDLE);
+          setAnalysisReport(null);
+          setIsFocused(false);
+        } catch (error) {
+          console.error("Failed to parse schema:", error);
+          alert("Failed to parse the provided file. It might be an unsupported format or contain syntax errors.");
+        }
       }
     };
     reader.readAsText(file);
@@ -170,17 +156,20 @@ const App: React.FC = () => {
                 type="text"
                 className="block w-full pl-10 pr-3 py-1.5 border border-gray-700 rounded-md leading-5 bg-gray-800 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 sm:text-sm transition-all"
                 placeholder="Search tables or columns..."
+                aria-label="Search tables or columns"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
             {/* Layout Switcher */}
-            <div className="flex items-center bg-gray-800 rounded-lg p-1 border border-gray-700 shrink-0">
+            <div className="flex items-center bg-gray-800 rounded-lg p-1 border border-gray-700 shrink-0" role="radiogroup" aria-label="Graph Layout">
               {(['FORCE', 'TREE', 'GRID', 'CIRCLE'] as LayoutType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => setLayout(type)}
+                  role="radio"
+                  aria-checked={layout === type}
                   className={`px-3 py-1 text-xs font-medium rounded-md transition-all uppercase ${
                     layout === type ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'
                   }`}
@@ -192,28 +181,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-             {/* Save/Load Controls */}
-             <div className="flex items-center gap-1 mr-2">
-              <button 
-                onClick={saveSchemaToStorage}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors"
-                title="Save current schema"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-              </button>
-              <button 
-                onClick={loadSchemaFromStorage}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors"
-                title="Load saved schema"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-              </button>
-            </div>
-
             <label 
               className={`
                 flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-all border
@@ -225,12 +192,21 @@ const App: React.FC = () => {
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  // Trigger file input click if keyboard focused
+                  e.currentTarget.querySelector('input')?.click();
+                }
+              }}
+              role="button"
+              aria-label="Upload schema file"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <span className="hidden sm:inline">{isDragOver ? 'Drop file' : 'New Schema'}</span>
-              <input type="file" className="hidden" accept=".rb,.txt" onChange={handleFileChange} />
+              <span className="hidden sm:inline">{isDragOver ? 'Drop file' : 'Import Schema'}</span>
+              <input type="file" className="hidden" accept=".rb,.sql,.prisma,.py,.txt" onChange={handleFileChange} />
             </label>
           </div>
         </header>
@@ -253,7 +229,11 @@ const App: React.FC = () => {
                 </svg>
               </div>
               <p className="text-lg font-medium">No Schema Loaded</p>
-              <p className="text-sm max-w-md text-center text-gray-600">Upload a schema.rb file or load a saved one to visualize.</p>
+              <p className="text-sm max-w-md text-center text-gray-600">
+                Upload a schema file to visualize.
+                <br/>
+                Supported: <span className="text-gray-400">Rails (.rb), SQL (.sql), Prisma (.prisma), Django (.py)</span>
+              </p>
             </div>
           )}
         </div>

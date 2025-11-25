@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { SchemaData, Table, GraphNode, GraphLink, LayoutType } from '../types';
@@ -23,14 +24,12 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     content: null
   });
 
-  // Keep a reference to the simulation to control it across renders
-  const simulationRef = useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
-  
-  // References for D3 objects
-  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  // Use 'any' for D3 references to avoid type resolution crashes in restricted environments
+  const simulationRef = useRef<any>(null);
+  const zoomBehaviorRef = useRef<any>(null);
   const nodesRef = useRef<GraphNode[]>([]);
   const linksRef = useRef<GraphLink[]>([]);
-  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const gRef = useRef<any>(null);
 
   // Handle Resize
   useEffect(() => {
@@ -74,6 +73,7 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       .attr("fill", "#6b7280");
 
     // Initialize Data
+    // We create shallow copies to prevent d3 from mutating the original props unnecessarily deeply if strict mode runs twice
     nodesRef.current = data.tables.map(t => ({
       id: t.id,
       type: 'table',
@@ -91,50 +91,52 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     );
 
     // Draw Elements
-    const linkGroup = g.append("g").attr("class", "links");
+    const linkGroupWrapper = g.append("g").attr("class", "links");
 
-    // 1. Invisible wide lines for easier hover detection
-    linkGroup.selectAll("line.hit-area")
+    // We use a group for each link to hold both the visible line and the invisible hit area
+    const linkGroups = linkGroupWrapper.selectAll("g.link-group")
       .data(linksRef.current)
-      .enter().append("line")
+      .enter().append("g")
+      .attr("class", "link-group");
+
+    // 1. Visible relationship lines
+    linkGroups.append("line")
+      .attr("class", "visible-link transition-colors duration-200")
+      .attr("stroke", "#4b5563")
+      .attr("stroke-width", 1.5)
+      .attr("marker-end", "url(#arrow)");
+
+    // 2. Invisible wide lines for easier hover detection (drawn on top of visible line)
+    linkGroups.append("line")
       .attr("class", "hit-area")
       .attr("stroke", "transparent")
       .attr("stroke-width", 15)
       .style("cursor", "pointer")
-      .on("mouseenter", (event, d) => {
+      .on("mouseenter", function(event: any, d: any) {
         setTooltip({
           show: true,
           x: event.pageX,
           y: event.pageY,
           content: d.column ? `FK: ${d.column}` : 'Relationship'
         });
-        d3.select(event.currentTarget.nextSibling).attr("stroke", "#f59e0b").attr("stroke-width", 2.5);
+        // Highlight the sibling visible-link
+        d3.select(event.currentTarget.parentNode as Element).select(".visible-link")
+          .attr("stroke", "#f59e0b")
+          .attr("stroke-width", 2.5);
       })
-      .on("mousemove", (event) => {
+      .on("mousemove", (event: any) => {
         setTooltip(prev => ({
           ...prev,
           x: event.pageX,
           y: event.pageY
         }));
       })
-      .on("mouseleave", (event) => {
+      .on("mouseleave", function(event: any) {
         setTooltip(prev => ({ ...prev, show: false }));
-        // Reset style logic will handle color reset in the useEffect hook, 
-        // but for immediate feedback we can reset here if not highlighted by search
-        const isHighlighted = false; // Logic handled in search effect usually
-        if (!isHighlighted) {
-           d3.select(event.currentTarget.nextSibling).attr("stroke", "#4b5563").attr("stroke-width", 1.5);
-        }
+        d3.select(event.currentTarget.parentNode as Element).select(".visible-link")
+          .attr("stroke", "#4b5563")
+          .attr("stroke-width", 1.5);
       });
-
-    // 2. Visible relationship lines
-    linkGroup.selectAll("line.visible-link")
-      .data(linksRef.current)
-      .enter().append("line")
-      .attr("class", "visible-link transition-colors duration-200")
-      .attr("stroke", "#4b5563")
-      .attr("stroke-width", 1.5)
-      .attr("marker-end", "url(#arrow)");
 
     // Nodes
     const nodeGroups = g.append("g")
@@ -144,7 +146,7 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       .enter().append("g")
       .attr("cursor", "pointer")
       .attr("class", "transition-opacity duration-300")
-      .on("click", (event, d) => {
+      .on("click", (event: any, d: any) => {
         onSelectTable(d.data);
         event.stopPropagation();
       });
@@ -166,20 +168,20 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     nodeGroups.append("text")
       .attr("dy", 5)
       .attr("text-anchor", "middle")
-      .text(d => d.id)
+      .text((d: any) => d.id)
       .attr("fill", "#e5e7eb")
       .attr("font-size", "12px")
       .attr("font-weight", "600")
       .style("pointer-events", "none");
 
     // Setup Zoom
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoom = d3.zoom()
       .scaleExtent([0.1, 4])
-      .on("zoom", (event) => {
+      .on("zoom", (event: any) => {
         g.attr("transform", event.transform);
       });
     
-    svg.call(zoom);
+    svg.call(zoom as any);
     zoomBehaviorRef.current = zoom;
 
     // Center initial view
@@ -187,7 +189,7 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       .translate(dimensions.width / 2, dimensions.height / 2)
       .scale(0.8)
       .translate(-dimensions.width / 2, -dimensions.height / 2);
-    svg.call(zoom.transform, initialTransform);
+    svg.call(zoom.transform as any, initialTransform);
 
   }, [data, dimensions.width, dimensions.height]);
 
@@ -202,7 +204,7 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
 
     if (simulationRef.current) simulationRef.current.stop();
 
-    const simulation = d3.forceSimulation<GraphNode>(nodes)
+    const simulation = d3.forceSimulation(nodes as any)
       .force("collide", d3.forceCollide(70));
 
     // Reset fixed positions
@@ -214,7 +216,7 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     // Configure Layouts
     if (layout === 'FORCE') {
       simulation
-        .force("link", d3.forceLink<GraphNode, GraphLink>(links).id(d => d.id).distance(180))
+        .force("link", d3.forceLink(links).id((d: any) => d.id).distance(180))
         .force("charge", d3.forceManyBody().strength(-400))
         .force("center", d3.forceCenter(width / 2, height / 2));
       
@@ -245,11 +247,11 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       const levelHeight = 150;
       
       simulation
-        .force("link", d3.forceLink<GraphNode, GraphLink>(links).id(d => d.id).distance(100).strength(0.5))
+        .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100).strength(0.5))
         .force("charge", d3.forceManyBody().strength(-300))
         .force("collide", d3.forceCollide(80))
         .force("x", d3.forceX(width / 2).strength(0.05))
-        .force("y", d3.forceY<GraphNode>(d => {
+        .force("y", d3.forceY((d: any) => {
            const totalHeight = maxLevel * levelHeight;
            const startY = (height - totalHeight) / 2;
            return startY + ((d.level || 0) * levelHeight);
@@ -263,11 +265,11 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       const spacingY = 100;
       
       simulation
-        .force("x", d3.forceX<GraphNode>((d, i) => {
+        .force("x", d3.forceX((d: any, i: number) => {
           const col = i % cols;
           return (col - cols / 2) * spacingX + width / 2;
         }).strength(1))
-        .force("y", d3.forceY<GraphNode>((d, i) => {
+        .force("y", d3.forceY((d: any, i: number) => {
           const row = Math.floor(i / cols);
           return (row - cols / 2) * spacingY + height / 2;
         }).strength(1));
@@ -279,8 +281,8 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
       const angleStep = (2 * Math.PI) / nodes.length;
 
       simulation
-        .force("x", d3.forceX<GraphNode>((d, i) => width / 2 + radius * Math.cos(i * angleStep)).strength(1))
-        .force("y", d3.forceY<GraphNode>((d, i) => height / 2 + radius * Math.sin(i * angleStep)).strength(1));
+        .force("x", d3.forceX((d: any, i: number) => width / 2 + radius * Math.cos(i * angleStep)).strength(1))
+        .force("y", d3.forceY((d: any, i: number) => height / 2 + radius * Math.sin(i * angleStep)).strength(1));
 
       simulation.alpha(1).restart();
     }
@@ -289,8 +291,9 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     simulation.on("tick", () => {
       if (!gRef.current) return;
 
-      // Update both hit-area lines and visible lines (both selected via .links line)
-      gRef.current.selectAll(".links line")
+      // Update the wrapper group for each link
+      gRef.current.selectAll(".link-group")
+        .selectAll("line") // Updates both visible-link and hit-area inside the group
         .attr("x1", (d: any) => d.source.x)
         .attr("y1", (d: any) => d.source.y)
         .attr("x2", (d: any) => d.target.x)
@@ -301,17 +304,17 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     });
 
     // Drag behavior
-    const drag = d3.drag<SVGGElement, GraphNode>()
-      .on("start", (event, d) => {
+    const drag = d3.drag()
+      .on("start", (event: any, d: any) => {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         d.fx = d.x;
         d.fy = d.y;
       })
-      .on("drag", (event, d) => {
+      .on("drag", (event: any, d: any) => {
         d.fx = event.x;
         d.fy = event.y;
       })
-      .on("end", (event, d) => {
+      .on("end", (event: any, d: any) => {
         if (!event.active) simulation.alphaTarget(0);
         d.fx = null;
         d.fy = null;
@@ -369,12 +372,11 @@ export const SchemaGraph: React.FC<SchemaGraphProps> = ({ data, onSelectTable, s
     gRef.current.selectAll(".nodes > g")
       .style("opacity", (d: any) => isDefaultState || highlightedNodeIds.has(d.id) ? 1 : 0.1);
 
-    gRef.current.selectAll(".links line.visible-link")
+    // Filter link groups
+    gRef.current.selectAll(".link-group")
       .style("opacity", (d: any, i: number) => isDefaultState || highlightedLinkIndices.has(i) ? 1 : 0.05)
-      .attr("stroke", (d: any, i: number) => {
-         // Re-apply hover highlight logic? No, keep simple. Hover overrides via CSS or event.
-         return "#4b5563"; 
-      });
+      .select(".visible-link")
+      .attr("stroke", "#4b5563"); // Reset color
 
     gRef.current.selectAll(".node-rect")
        .attr("stroke", (d: any) => {
